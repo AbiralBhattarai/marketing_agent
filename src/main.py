@@ -162,7 +162,7 @@ async def run_workflow():
     # We must provide the required CampaignPlan placeholder (can be empty)
     from src.domain.models.input import CampaignPlan
     initial_state = CampaignAgentState(
-        user_prompt="Im from FIFA. The worldcup is currently going on. I want to promote the worldcup official merchandise. Generate me the campaign.",
+        user_prompt="I'm from nike and i want to promote this years nike airforce 1s that use reusable and environment friendly materials, is more comfortable and is more resistant to stain. I have a budget of 10000$",
         campaign_plan=CampaignPlan(steps=[]),
         mermaid_diagram=""
     )
@@ -232,6 +232,15 @@ async def run_workflow():
         print("\n--- Architecture Diagram ---")
         print("Mermaid Diagram generated successfully! Here is the code:")
         print(diagram)
+        
+    context = state.values.get("retrieved_context")
+    if context and hasattr(context, "contexts") and context.contexts:
+        print("\n--- Gathered Context ---")
+        for i, c in enumerate(context.contexts):
+            print(f"[{i+1}] {c.title}")
+            if hasattr(c, "url") and c.url:
+                print(f"    URL: {c.url}")
+            print(f"    Content: {str(c.context)[:150]}...")
 
 if __name__ == "__main__":
     asyncio.run(run_workflow())

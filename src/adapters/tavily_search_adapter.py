@@ -47,3 +47,25 @@ class TavilySearchAdapter(WebSearchPort):
                 ))
 
         return TopKWebsites(websites=websites)
+
+    async def search_context(self, query: str) -> str:
+        if not query or not query.strip():
+            return "No context found."
+
+        response = await self._client.search(
+            query=query.strip(),
+            search_depth=self.search_depth,
+            max_results=self.max_results,
+        )
+
+        raw_results = response.get("results", [])
+        
+        # Combine the results into a string format that the LLM can easily read
+        context_string = ""
+        for i, item in enumerate(raw_results):
+            title = item.get("title", "No Title")
+            content = item.get("content", "No Content")
+            url = item.get("url", "No URL")
+            context_string += f"Result {i+1}:\nTitle: {title}\nURL: {url}\nContent: {content}\n\n"
+
+        return context_string

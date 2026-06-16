@@ -10,23 +10,13 @@ class SearchWebsites(BaseModel):
 
 
 
-class HistoricalCampaignDataModel(BaseModel):
-    campaign_title: str = Field(...,description="The exact name or title of the historical marketing campaign.")
-    campaign_details: str = Field(...,description="A detailed breakdown of the campaign's strategy, channels used, and outcomes.")
+class RetrievedContextModel(BaseModel):
+    title: str = Field(...,description="Title")
+    context: str = Field(...,description="The detailed content, text, or trends extracted from the search result.")
+    url: str = Field(None, description="The URL of the search result.")
 
-
-class CurrentMarketingTrendsModel(BaseModel):
-    title: str = Field(...,description="A short, catchy title summarizing the marketing trend.")
-    description: str = Field(...,description="An explanation of why this trend is currently effective in the market.")
-
-
-class TopMarketingTrends(BaseModel):
-    trends: List[CurrentMarketingTrendsModel] = Field(..., description="A list of current marketing trends extracted from the text.")
-
-
-class ExtractedCampaigns(BaseModel):
-    campaigns: List[HistoricalCampaignDataModel] = Field(..., description="A list of historical campaigns relevant to the user's prompt.")
-
+class RetrievedContextList(BaseModel):
+    contexts: list[RetrievedContextModel] = Field(default_factory=list)
 
 class TopKWebsites(BaseModel):
     websites: List[SearchWebsites] = Field(...,description="Websites")

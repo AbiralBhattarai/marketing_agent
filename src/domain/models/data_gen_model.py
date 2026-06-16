@@ -17,8 +17,7 @@ class VideoPreferenceModel(BaseModel):
     video_orientation: VideoOrientation
     video_duration: VideoDuration
     video_type: VideoType = Field(description="A single video type enum")
-    video_script: str | None = None
-
+    video_script: str = Field(..., description="A high-level rough idea for the video script. Provide a general concept and flow, without getting into specific scenes, timestamps, or exact dialogue.")
 
 class FinalGenerationModel(BaseModel):
     campaign_basics: CampaignBasicsModel

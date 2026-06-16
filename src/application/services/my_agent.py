@@ -12,7 +12,7 @@ if not logger.handlers:
     logger.addHandler(handler)
 from pydantic import BaseModel
 from src.domain.models.input import SearchResultsFromQuery, AgentInput, CampaignPlan
-from src.domain.models.context_fetch_model import HistoricalCampaignDataModel,SearchWebsites,TopKWebsites,CurrentMarketingTrendsModel, AggregatedContextModel, TopMarketingTrends, ExtractedCampaigns
+from src.domain.models.context_fetch_model import SearchWebsites,TopKWebsites, AggregatedContextModel, RetrievedContextList
 from src.domain.models.data_gen_model import CampaignBasicsModel, VideoPreferenceModel, FinalGenerationModel
 from src.domain.models.node_status_model import NodeStatusModel
 from src.domain.models.state import CampaignAgentState
@@ -26,15 +26,14 @@ from src.adapters.campaign_description_gen_adapter import CampaignDescriptionGen
 from src.adapters.video_description_gen_adapter import VideoScriptGenAdapter
 from src.adapters.creator_recommendation_adapter import CreatorRecommendationAdapter
 
-from src.application.services.tools import build_top_k_web_search_tool,build_current_trend_search_tool,build_similar_campaign_search_tool, build_generation_tool
+from src.application.services.tools import build_top_k_web_search_tool,context_search_tool, build_generation_tool
 
 from src.application.services.llm import get_llm
 
 # --- Global Dependency Initialization ---
 _search_adapter = TavilySearchAdapter()
 GLOBAL_TOOLS = [
-    build_current_trend_search_tool(_search_adapter),
-    build_similar_campaign_search_tool(_search_adapter),
+    context_search_tool(_search_adapter),
     build_generation_tool()
 ]
 
@@ -134,24 +133,27 @@ async def llm_node(state: CampaignAgentState) -> Dict[str, Any]:
     
     system_prompt = """
     You are an expert marketing research agent. 
-    You have access to 3 tools: websearch_tool, similar_campaign_search_tool, generation_tool.
+    You have access to 2 tools: context_search_tool and generation_tool.
     
-    The user has already verified the top competitor websites. Your job is to:
-    1. Research current marketing trends for the category using `websearch_tool`.
-    2. Research similar historical campaigns using `similar_campaign_search_tool`.
-    3. Once you have gathered sufficient trends and campaigns, call `generation_tool` to submit the final structured campaign data.
+    Your workflow is:
+    1. Research relevant context using `context_search_tool` based on the Inferred Campaign Steps.
+    2. ONCE YOU HAVE ENOUGH CONTEXT, YOU MUST CALL `generation_tool` to submit the final structured campaign data. DO NOT respond with regular text to summarize. You MUST call `generation_tool` to finish the workflow!
     """
     
     # 3. Create the conversational context from the State (acting as our memory)
-    system_context = f"{system_prompt}\n\nWebsites Verified By Human: {state.websites_verified}\n\nCurrent Knowledge State:\n"
+    system_context = f"{system_prompt}\n\n"
+    
+    if state.campaign_plan:
+        system_context += f"Inferred Campaign Execution Steps:\n{state.campaign_plan.model_dump_json()}\n\n"
+        
+    system_context += f"Websites Verified By Human: {state.websites_verified}\n\nCurrent Knowledge State:\n"
+    
     if state.websites_verified and state.selected_websites:
         system_context += f"Human-Selected Websites: {state.selected_websites}\n"
     elif state.top_k_websites:
         system_context += f"Top Websites: {state.top_k_websites}\n"
-    if state.marketing_trends:
-        system_context += f"Marketing Trends: {state.marketing_trends}\n"
-    if state.historical_campaigns:
-        system_context += f"Historical Campaigns: {state.historical_campaigns}\n"
+    if state.retrieved_context:
+        system_context += f"Retrieved Context: {state.retrieved_context}\n"
 
     # Construct the messages to pass
     messages_to_pass = list(state.messages)
@@ -191,41 +193,27 @@ async def execute_tools_node(state: CampaignAgentState) -> Dict[str, Any]:
                 
             tool_instance = GLOBAL_TOOLS_MAP[tool_name]
                 
-            if tool_name == "websearch_tool":
-                logger.info(f"Executing websearch_tool for trends.")
+            if tool_name == "context_search_tool":
+                logger.info(f"Executing context_search_tool.")
                 try:
                     res = await tool_instance.ainvoke(args)
-                    trends_structured = await llm.structured_response(
-                        user_input=str(res) if res else "No trends found.",
-                        instructions="Extract current marketing trends from the text.",
-                        schema_model=TopMarketingTrends
+                    context_structured = await llm.structured_response(
+                        user_input=str(res) if res else "No context found.",
+                        instructions="Extract and structure the context from the search results.",
+                        schema_model=RetrievedContextList
                     )
                     
-                    current_trends = state.marketing_trends or []
-                    new_trends = trends_structured.trends if hasattr(trends_structured, 'trends') else []
-                    state_updates["marketing_trends"] = current_trends + new_trends
-                    state_updates["messages"].append(ToolMessage(content="Trends gathered and synthesized.", tool_call_id=tool_call_id))
-                except Exception as e:
-                    logger.error(f"Error extracting trends: {str(e)}")
-                    state_updates["messages"].append(ToolMessage(content=f"Error extracting trends: {str(e)}", tool_call_id=tool_call_id))
-                
-            elif tool_name == "similar_campaign_search_tool":
-                logger.info(f"Executing similar_campaign_search_tool.")
-                try:
-                    res = await tool_instance.ainvoke(args)
-                    campaigns_structured = await llm.structured_response(
-                        user_input=str(res) if res else "No campaigns found.",
-                        instructions="Extract historical campaigns from the text.",
-                        schema_model=ExtractedCampaigns
-                    )
+                    current_context = []
+                    if state.retrieved_context and hasattr(state.retrieved_context, 'contexts'):
+                        current_context = state.retrieved_context.contexts
+                        
+                    new_context = context_structured.contexts if hasattr(context_structured, 'contexts') else []
                     
-                    current_campaigns = state.historical_campaigns or []
-                    new_campaigns = campaigns_structured.campaigns if hasattr(campaigns_structured, 'campaigns') else []
-                    state_updates["historical_campaigns"] = current_campaigns + new_campaigns
-                    state_updates["messages"].append(ToolMessage(content="Campaigns gathered and synthesized.", tool_call_id=tool_call_id))
+                    state_updates["retrieved_context"] = RetrievedContextList(contexts=current_context + new_context)
+                    state_updates["messages"].append(ToolMessage(content="Context gathered and synthesized.", tool_call_id=tool_call_id))
                 except Exception as e:
-                    logger.error(f"Error extracting campaigns: {str(e)}")
-                    state_updates["messages"].append(ToolMessage(content=f"Error extracting campaigns: {str(e)}", tool_call_id=tool_call_id))
+                    logger.error(f"Error extracting context: {str(e)}")
+                    state_updates["messages"].append(ToolMessage(content=f"Error extracting context: {str(e)}", tool_call_id=tool_call_id))
                 
             elif tool_name == "generation_tool":
                 logger.info(f"Executing generation_tool.")

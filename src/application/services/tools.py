@@ -32,23 +32,31 @@ def build_top_k_web_search_tool(search_adapter):
 #     return scrape_tool
 
 
-def build_current_trend_search_tool(search_adapter):
+# def build_current_trend_search_tool(search_adapter):
+#     @tool(args_schema=AgentInput)
+#     @retry(stop=stop_after_attempt(3))
+#     async def websearch_tool(agent_input: str):
+#         """Search for top k websites based on search query."""
+#         return await search_adapter.search_web(agent_input)
+#     return websearch_tool
+#
+#
+# def build_similar_campaign_search_tool(search_adapter):
+#     @tool(args_schema=AgentInput)
+#     @retry(stop=stop_after_attempt(3))
+#     async def similar_campaign_search_tool(agent_input: str):
+#         """Search for top k campaigns based on search query."""
+#         return await search_adapter.search_web(agent_input)
+#     return similar_campaign_search_tool
+
+
+def context_search_tool(search_adapter):
     @tool(args_schema=AgentInput)
     @retry(stop=stop_after_attempt(3))
-    async def websearch_tool(agent_input: str):
-        """Search for top k websites based on search query."""
-        return await search_adapter.search_web(agent_input)
-    return websearch_tool
-
-
-def build_similar_campaign_search_tool(search_adapter):
-    @tool(args_schema=AgentInput)
-    @retry(stop=stop_after_attempt(3))
-    async def similar_campaign_search_tool(agent_input: str):
-        """Search for top k campaigns based on search query."""
-        return await search_adapter.search_web(agent_input)
-    return similar_campaign_search_tool
-
+    async def context_search_tool(agent_input: str):
+        """Search for relevant context as defined by the llm."""
+        return await search_adapter.search_context(agent_input)
+    return context_search_tool
 
 def build_generation_tool():
     @tool(args_schema=FinalGenerationModel)

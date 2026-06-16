@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from src.domain.models.db_model import BrandDataModel
-from src.domain.models.context_fetch_model import SearchWebsites,HistoricalCampaignDataModel,CurrentMarketingTrendsModel,TopKWebsites,AggregatedContextModel
+from src.domain.models.context_fetch_model import SearchWebsites, TopKWebsites, AggregatedContextModel, RetrievedContextModel, RetrievedContextList
 from src.domain.models.data_gen_model import CampaignBasicsModel,VideoPreferenceModel
 from src.domain.models.input import CampaignPlan
 from src.domain.models.node_status_model import NodeStatusModel
@@ -19,13 +19,7 @@ class CampaignAgentState(BaseModel):
     # brand_data: BrandDataModel | None = None
     top_k_websites: TopKWebsites | None = None
     selected_websites: list[SearchWebsites] = Field(default_factory=list)
-    historical_campaigns: list[HistoricalCampaignDataModel] = Field(
-        default_factory=list
-    )
-    marketing_trends: list[CurrentMarketingTrendsModel] = Field(
-        default_factory=list
-    )
-    aggregated_context: AggregatedContextModel | None = None
+    retrieved_context : RetrievedContextList | None = None
     campaign_websites: list[SearchWebsites] = Field(default_factory=list)
     current_trend_websites : list[SearchWebsites] = Field(default_factory=list)
     websites_verified: bool = False
